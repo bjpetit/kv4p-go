@@ -25,7 +25,7 @@ var (
 	cmd_prefix = []byte{0xDE, 0xAD, 0xBE, 0xEF}
 	Debug      = false
 
-	ErrNoDevice = fmt.Errorf("No device found")
+	ErrNoDevice = fmt.Errorf("no device found")
 )
 
 const (
@@ -124,27 +124,31 @@ func (p *CommandProcessor) processBytes(buf []byte) {
 	for _, b := range buf {
 		switch {
 		case p.state < len(cmd_prefix):
+			// log.Println("< plen", b)
 			if b != cmd_prefix[p.state] {
 				p.params = append(p.params, b)
 			} else {
 				if len(p.params) > 0 {
-					log.Print("Skipped bytes:\n", hex.Dump(p.params))
+					if Debug {
+						log.Print("Skipped bytes:\n", hex.Dump(p.params))
+					}
 					p.params = nil
 				}
 				p.state++
 			}
 
 		case p.state == len(cmd_prefix):
+			// log.Println("plen", b)
 			p.cmd = b
 			p.state++
 
 		case p.state == len(cmd_prefix)+1:
-			//log.Println("plen-1", b)
+			// log.Println("plen-1", b)
 			p.plen = int(b) & 0xFF
 			p.state++
 
 		case p.state == len(cmd_prefix)+2:
-			//log.Println("plen-2", b)
+			// log.Println("plen-2", b)
 			p.plen |= (int(b) & 0xFF) << 8
 			p.state++
 
@@ -157,6 +161,7 @@ func (p *CommandProcessor) processBytes(buf []byte) {
 			p.params = make([]byte, 0, p.plen)
 
 		default:
+			// log.Println("default", b)
 			l := len(p.params)
 			if l < p.plen {
 				p.params = append(p.params, b)
@@ -194,7 +199,7 @@ func (p *CommandProcessor) processCommand() {
 		log.Printf("HELLO\n")
 		p.hello = true
 	case RES_VERSION:
-		if p.plen != 8 {
+		if p.plen != 12 {
 			log.Printf("Invalid version length: %d (%02x)\n", p.plen, p.params)
 			break
 		}
@@ -210,7 +215,9 @@ func (p *CommandProcessor) processCommand() {
 		}
 		wsize := binary.LittleEndian.Uint32(p.params[0:4])
 		p.windowSize += int(wsize)
-		log.Printf("Window update: %d\n", p.windowSize)
+		if Debug {
+			log.Printf("Window update: %d\n", p.windowSize)
+		}
 	case RES_SMETER_REPORT:
 		if p.plen != 1 {
 			log.Printf("Invalid S-Meter length: %d (%02x)\n", p.plen, p.params)
@@ -218,8 +225,10 @@ func (p *CommandProcessor) processCommand() {
 		}
 		smeter := smeterValue(int(p.params[0]) & 0xFF)
 		p.scount++
-		if p.smeter != smeter || Debug {
-			log.Printf("S-Meter: %d\n", smeter)
+		if p.smeter != smeter {
+			if Debug {
+				log.Printf("S-Meter: %d\n", smeter)
+			}
 			p.smeter = smeter
 		}
 		if p.SMeterCallback != nil {
@@ -372,6 +381,7 @@ func (p *CommandProcessor) SendStop() error {
 		return err
 	}
 
+	p.quit = true
 	p.port.Drain()
 	time.Sleep(1 * time.Second)
 	return nil
@@ -439,6 +449,10 @@ func (p *CommandProcessor) Stop() {
 
 	p.player.Close()
 	p.port.Close()
+	p.audioDecoder = nil
+	p.audioBuffer = nil
+	p.player = nil
+	p = nil
 }
 
 func (p *CommandProcessor) Reset() {
@@ -454,13 +468,13 @@ func (p *CommandProcessor) Reset() {
 
 // implement io.Reader interface for oto.Player
 func (p *CommandProcessor) Read(buf []byte) (int, error) {
-	if len(p.audioBuffer) == 0 {
-		for i := 0; i < len(buf); i++ {
-			buf[i] = 0
-		}
-
-		return len(buf), nil
-	}
+	//if len(p.audioBuffer) == 0 {
+	//	for i := 0; i < len(buf); i++ {
+	//		buf[i] = 0
+	//	}
+	//
+	//	return len(buf), nil
+	//}
 
 	la := len(p.audioBuffer)
 	lb := la * 2

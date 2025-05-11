@@ -18,7 +18,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
-	kv4pht "github.com/raff/kv4p-go"
+	kv4pht "github.com/raff/kv4p-go/kv4pht"
 )
 
 const fontSize = 28
